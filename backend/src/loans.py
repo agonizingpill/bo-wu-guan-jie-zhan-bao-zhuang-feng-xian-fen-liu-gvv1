@@ -7,12 +7,13 @@ from .storage import audit
 
 ARCHIVE = '''
 SELECT l.*, to_jsonb(c) AS crate, to_jsonb(w) AS transit, to_jsonb(t) AS triage,
-       to_jsonb(r) AS review
+       to_jsonb(r) AS review, to_jsonb(s) AS standby
 FROM exhibit_loan l
 LEFT JOIN crate_check c ON c.loan_id=l.id
 LEFT JOIN transit_window w ON w.loan_id=l.id AND w.status IN ('booked','conflict','dispatched')
 LEFT JOIN triage_case t ON t.loan_id=l.id
 LEFT JOIN unpack_review r ON r.case_id=t.id
+LEFT JOIN standby_assessment s ON s.loan_id=l.id
 '''
 
 
@@ -98,6 +99,12 @@ def inspect_crate(db, loan_id, data, actor):
         raise HTTPException(409, '箱号或封签已被另一个借展批次占用') from exc
     if loan['status'] == LoanStatus.REGISTERED:
         change_status(db, loan_id, LoanStatus.PACKING)
+    if current and (current['material'] != data.material or current['packing'] != data.packing):
+        retired = db.execute('''UPDATE standby_assessment SET status='cancelled',outcome='superseded',outcome_at=now()
+                             WHERE loan_id=%s AND status IN ('queued','scored') AND outcome='pending'
+                             RETURNING id''', (loan_id,)).fetchone()
+        if retired:
+            audit(db, loan_id, actor, 'standby_cancelled', assessment_id=retired['id'], reason='crate_changed')
     audit(db, loan_id, actor, 'crate_checked', crate_code=data.crate_code, seal_code=data.seal_code,
           previous_seal=current['seal_code'] if current else None,
           issue=None if data.seal_code else 'missing_seal')

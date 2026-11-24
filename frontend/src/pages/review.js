@@ -1,6 +1,12 @@
 import {activity, field, fileIndex, heading, note, recordHeader, select, stamp} from '../components.js';
-import {reviewStates} from '../constants.js';
+import {reviewStates, standbyOutcomes} from '../constants.js';
 import {dateTime, escape as e, percent} from '../format.js';
+
+function standbyTrace(standby) {
+  if (!standby || standby.outcome === 'pending') return '';
+  return `<p class="muted">备用复核：${e(standbyOutcomes[standby.outcome] ?? standby.outcome)}${
+    standby.outcome_at ? ` · ${dateTime(standby.outcome_at)}` : ''}</p>`;
+}
 
 function reviewForm(record, staff) {
   const review = record.review;
@@ -26,6 +32,7 @@ export function reviewPage({loans, record, staff}) {
     <div class="workbench">${fileIndex(loans, record, 'review')}${record ? `<article class="dossier">${recordHeader(record)}
       ${review ? `<div class="review-strip"><span class="mono">复核单 / ${review.case_id}</span>${stamp(review.status, reviewStates)}
         <span>模型风险 ${percent(record.triage.probability)}</span></div>
+        ${record.standby?.outcome === 'promoted' ? '<p class="success-line">开箱见证沿用正式评分卡住期间的备用复核。</p>' : standbyTrace(record.standby)}
         <div class="review-sheet"><section><ol class="signoffs">
           <li><div><h3>开箱见证</h3><p>${e(review.witness_note ?? '等待经办开箱并记录器物状态。')}</p>
           ${review.witness_by ? `<small>${e(review.witness_by)} · ${dateTime(review.witnessed_at)}</small>` : ''}</div></li>
@@ -34,5 +41,5 @@ export function reviewPage({loans, record, staff}) {
           <li><div><h3>封签抽检</h3><p>${review.sample_seal ? `最近一次实见封签 ${e(review.sample_seal)}` : '主管改判后，必须实地核对封签。'}</p>
           ${review.sample_by ? `<small>${e(review.sample_by)} · ${dateTime(review.sampled_at)}</small>` : ''}</div></li></ol>
           ${reviewForm(record, staff)}</section><aside class="audit-column"><h3>复核留痕</h3>${activity(record.history)}</aside></div>` :
-      '<p class="empty">此批没有开箱复核单。风险分流判定为高风险时会自动生成。</p>'}</article>` : ''}</div>`;
+      '<p class="empty">此批没有开箱复核单。风险分流判定为高风险时会自动生成。</p>'}${review ? '' : standbyTrace(record.standby)}</article>` : ''}</div>`;
 }

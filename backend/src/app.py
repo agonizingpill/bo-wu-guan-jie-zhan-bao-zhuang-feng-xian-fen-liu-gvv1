@@ -2,7 +2,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from . import loans, reviews, transit, triage
+from . import loans, reviews, standby, transit, triage
 from .middleware import application_errors, request_history
 from .schemas import (CrateInspection, GallerySetup, LoanIntake, Login, ReopenReview, ReviewDecision,
                       Role, SampleObservation, StaffMember, TransitReservation, Witness)
@@ -103,6 +103,20 @@ def request_score(loan_id: int, staff=Depends(operator)):
         record, case_id = triage.enqueue(db, loan_id, staff.username)
     triage.notify_worker(case_id)
     return record
+
+
+@app.post('/loans/{loan_id}/standby', status_code=202)
+def request_standby_score(loan_id: int, staff=Depends(operator)):
+    with connection() as db:
+        record, assessment_id = standby.enqueue(db, loan_id, staff.username)
+    standby.notify_worker(assessment_id)
+    return record
+
+
+@app.post('/loans/{loan_id}/standby/witness')
+def record_standby_witness(loan_id: int, data: Witness, staff=Depends(operator)):
+    with connection() as db:
+        return standby.witness(db, loan_id, data, staff.username)
 
 
 @app.post('/loans/{loan_id}/review/witness')

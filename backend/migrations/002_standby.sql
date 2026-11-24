@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS standby_assessment (
+    id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    loan_id bigint NOT NULL UNIQUE REFERENCES exhibit_loan,
+    status text NOT NULL CHECK (status IN ('queued', 'scored', 'failed', 'cancelled')),
+    input_snapshot jsonb NOT NULL,
+    probability double precision CHECK (probability BETWEEN 0 AND 1),
+    risk text CHECK (risk IN ('low', 'high')),
+    evidence jsonb,
+    attempts integer NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    error text,
+    requested_by text NOT NULL REFERENCES staff,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    computed_at timestamptz,
+    witness_by text REFERENCES staff,
+    witness_note text,
+    witnessed_at timestamptz,
+    outcome text NOT NULL DEFAULT 'pending' CHECK (outcome IN ('pending', 'promoted', 'revoked', 'superseded')),
+    outcome_case_id bigint REFERENCES triage_case,
+    outcome_at timestamptz
+);

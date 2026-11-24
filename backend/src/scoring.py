@@ -17,6 +17,8 @@ THRESHOLD = 0.58
 SMOOTHING = 12
 VERSION = 'crate-target-logit-v1'
 COLUMNS = ('material', 'packing', 'route_type', 'max_rh', 'transfers')
+STANDBY_COLUMNS = ('material', 'packing')
+STANDBY_VERSION = 'crate-standby-material-pack-v1'
 
 
 def synthetic_inspections():
@@ -73,4 +75,41 @@ def score(snapshot):
     transformed = model.named_steps['columntransformer'].transform(values)[0]
     evidence = {**statistics, 'input_sha256': sha(snapshot),
                 'encoded_features': dict(zip(COLUMNS, map(float, transformed), strict=True))}
+    return probability, 'high' if probability >= THRESHOLD else 'low', evidence
+
+
+@lru_cache(maxsize=1)
+def standby_model():
+    # Same synthetic inspections, but only material and packing are visible. The standby
+    # score never replaces the formal verdict; it only allows a witnessed unpack to start.
+    inputs, labels = synthetic_inspections()
+    x_train, x_test, y_train, y_test = train_test_split(
+        inputs[:, :2], labels, test_size=0.25, random_state=SEED, stratify=labels)
+    features = ColumnTransformer([
+        ('categories', TargetEncoder(target_type='binary', smooth=SMOOTHING, cv=5, random_state=SEED), [0, 1]),
+    ])
+    model = make_pipeline(features, LogisticRegression(solver='lbfgs', C=1.0, max_iter=500, random_state=SEED))
+    model.fit(x_train, y_train)
+    predictions = model.predict_proba(x_test)[:, 1]
+    statistics = {
+        'model_version': STANDBY_VERSION, 'random_seed': SEED, 'risk_threshold': THRESHOLD,
+        'smoothing': SMOOTHING, 'cross_fit_folds': 5, 'test_ratio': 0.25,
+        'train_count': len(y_train), 'test_count': len(y_test), 'training_source': 'synthetic',
+        'feature_columns': list(STANDBY_COLUMNS),
+        'roc_auc': round(float(roc_auc_score(y_test, predictions)), 4),
+        'brier_score': round(float(brier_score_loss(y_test, predictions)), 4),
+        'training_sha256': sha([inputs[:, :2].tolist(), labels.tolist()]),
+        'solver': 'lbfgs', 'regularization_c': 1.0, 'scikit_learn': sklearn.__version__,
+        'numpy': np.__version__, 'scipy': scipy.__version__,
+    }
+    return model, statistics
+
+
+def standby_score(snapshot):
+    model, statistics = standby_model()
+    values = np.asarray([[snapshot[column] for column in STANDBY_COLUMNS]], dtype=object)
+    probability = float(model.predict_proba(values)[0, 1])
+    transformed = model.named_steps['columntransformer'].transform(values)[0]
+    evidence = {**statistics, 'input_sha256': sha({column: snapshot[column] for column in STANDBY_COLUMNS}),
+                'encoded_features': dict(zip(STANDBY_COLUMNS, map(float, transformed), strict=True))}
     return probability, 'high' if probability >= THRESHOLD else 'low', evidence

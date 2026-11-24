@@ -56,8 +56,8 @@ docker compose exec -T backend python -m scripts.seed_demo
 | --- | --- |
 | 界面 | 原生 HTML、CSS、JavaScript ES modules，`frontend/src/pages/`。`components.js` 提供档案索引、标题、状态印记和留痕，`format.js` 与 `api.js` 提供格式及 HTTP 工具，`store.js` 保存当前账号与借展档案。 |
 | 接口和身份 | Python 3.12、FastAPI、JWT、scrypt，`backend/src/app.py`、`security.py`、`middleware.py`。中间件统一请求编号、访问日志和服务异常。 |
-| 业务和持久层 | PostgreSQL 16、psycopg。`backend/migrations/001_archive.sql` 定义领域实体，`schemas.py` 校验输入，`loans.py`、`transit.py`、`triage.py`、`reviews.py` 执行状态规则。 |
-| 计算 | Redis 7 队列和独立 Python worker，`backend/src/worker.py`、`scoring.py`。 |
+| 业务和持久层 | PostgreSQL 16、psycopg。`backend/migrations/001_archive.sql` 定义领域实体，`002_standby.sql` 定义备用评分记录，`schemas.py` 校验输入，`loans.py`、`transit.py`、`triage.py`、`standby.py`、`reviews.py` 执行状态规则。 |
+| 计算 | Redis 7 队列和独立 Python worker，`backend/src/worker.py`、`scoring.py`。正式与备用评分分队列，worker 同时消费。 |
 | 部署 | Nginx 1.27、Docker Compose 五服务。Nginx 将 `/api/` 代理到 FastAPI。PostgreSQL 和 Redis 各有持久卷，后端与 worker 另有共享产物卷。模型留档实际写入 PostgreSQL。 |
 
 仅调试 Python 时，可用 Compose 启动 `db`、`redis`，把 Redis 临时通过 Compose override 映射到本机，然后在 `backend/` 安装 `requirements.txt`，设置 `DATABASE_URL`、`REDIS_URL`、`JWT_SECRET`，分别运行 `python -m src.startup` 与 `python -m src.worker`。开发界面可通过 `docker compose up -d --build frontend` 重建。
@@ -70,6 +70,13 @@ docker compose exec -T backend python -m scripts.seed_demo
 - 三个类别用平滑目标编码。类别样本数为 `n` 时，编码为 `(该类别正例数 + 12 × 训练正例率) / (n + 12)`。训练行按 5 折交叉拟合，湿度和转运经标准化后，与编码一起输入 L2 LogisticRegression（`C=1.0`）。
 - 用种子 `2611` 生成 960 条合成检查，分层留出 25%。模型概率达到 `0.58` 生成一张开箱复核单。留出集 ROC AUC、Brier 分数、版本、参数、样本和输入 SHA-256、编码值随结果写库。概率只代表当前演示模型的分流判断。
 - PostgreSQL 保留 `queued` 状态。Redis 通知丢失时，worker 会重新推送数据库中待算的任务。计算失败保留记录并允许同一 case 重试。
+- 正式分流长时间停在 `queued` 时，经办可在分流页发起备用评分。备用模型用同一批 960 条合成检查另训，只取材质和包装结构两列，其余训练口径（种子 `2611`、平滑 12、5 折、`C=1.0`、阈值 `0.58`）与正式模型一致，留档版本为 `crate-standby-material-pack-v1`。备用分数不改变正式放行口径：
+  - 备用高分：可先由经办签署开箱见证，见证随备用档案留存。正式出分前不得派车。
+  - 备用低分：不生成见证，仍须等正式出分才能派车。
+  - 正式高分：若已有备用见证，正式复核单直接沿用该见证进入主管签字；没有见证或备用低分时照常另开复核单。
+  - 正式低分：撤销临时备用复核单，见证与两次评分一并留存；该批次按低风险继续走封签与窗口确认。
+  - 正式出分与备用见证并发时，两者对同一批次行加锁。撤单一旦落定，后到的见证请求返回冲突，不再接收。
+  - 备用评分与正式评分使用独立队列（`museum:standby`），worker 同时消费两条队列并按 PostgreSQL 中的 `queued` 状态恢复，重复投递不会重复开单。
 - 派车同时要求封签存在、运输窗口已确认且借展已放行。同一展厅或同一车辆的有效窗口相互排斥。高风险由经办见证、主管签字，改判低风险须留理由并抽检封签。封签不符保留失败记录，仍需重新核验。
 
 ## 共享枚举
@@ -79,6 +86,7 @@ docker compose exec -T backend python -m scripts.seed_demo
 | 岗位 | `migrations/001_archive.sql`、`schemas.py`、`security.py`、`app.py`、`scripts/seed_demo.py` | `constants.js`、`app.js` 和四个 `pages/` 模块 |
 | 借展状态 | SQL 约束、`schemas.py`、`loans.py`、`transit.py`、`triage.py`、`reviews.py`、`worker.py`、seed | `constants.js`、`components.js`、`pages/archive.js`、`pages/transit.js` |
 | 开箱状态 | SQL 约束、`schemas.py`、`reviews.py`、`loans.py`、`worker.py`、seed | `constants.js`、`pages/review.js`、`pages/archive.js` |
+| 备用状态与接管结果 | `migrations/002_standby.sql`、`standby.py`、`loans.py`、`worker.py` | `constants.js`、`pages/triage.js`、`pages/review.js` |
 | 材质、包装、路线 | SQL 约束、`schemas.py`、`scoring.py`、seed | `constants.js`、`pages/archive.js`、`pages/triage.js` |
 
 许可证见 [MIT License](LICENSE)。

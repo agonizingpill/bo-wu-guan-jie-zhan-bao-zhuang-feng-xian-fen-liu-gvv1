@@ -7,6 +7,7 @@ from psycopg.types.json import Jsonb
 from redis import Redis
 
 QUEUE = 'museum:triage'
+STANDBY_QUEUE = 'museum:standby'
 
 
 def connection():

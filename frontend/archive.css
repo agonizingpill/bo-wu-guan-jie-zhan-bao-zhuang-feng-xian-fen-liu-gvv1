@@ -131,6 +131,13 @@ textarea { min-height: 80px; resize: vertical; }
 .evidence summary { cursor: pointer; }
 .fingerprint { overflow-wrap: anywhere; }
 .triage-intake p { margin: 8px 0 14px; }
+.standby-sheet { border-top: 1px solid var(--rule); margin-top: 22px; padding-top: 13px; }
+.standby-slip { background: var(--buff); border-left: 3px solid var(--muted); padding: 14px 16px; margin-top: 12px; }
+.standby-slip h3 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.standby-slip .probability { color: var(--ink); font-size: clamp(28px, 3.4vw, 44px); margin-block: 8px 6px; }
+.standby-slip p { color: var(--muted); font-size: 13px; }
+.standby-note { border-left: 2px solid var(--rule); padding-left: 12px; margin: 10px 0; }
+.standby-sheet details { color: var(--rust); margin: 10px 0 14px; }
 .review-strip { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--linen); margin-bottom: 16px; flex-wrap: wrap; }
 .review-strip span:last-child { margin-left: auto; color: var(--muted); }
 .signoffs { list-style: none; padding: 0; margin: 0 0 12px; }

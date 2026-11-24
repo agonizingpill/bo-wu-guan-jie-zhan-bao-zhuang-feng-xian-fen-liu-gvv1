@@ -11,6 +11,11 @@ export const materials = {porcelain: '瓷器', paper: '纸本', bronze: '青铜�
 export const packings = {foam: '泡棉贴合', suspension: '悬托固定', double_wall: '双层箱'};
 export const routes = {direct: '直达', transfer: '中转', mountain: '山地运输'};
 export const windowStates = {setup: '展厅布置', booked: '窗口确认', conflict: '窗口冲突', dispatched: '已派车'};
+export const standbyStates = {queued: '备用排队中', scored: '备用已出分', failed: '备用计算失败', cancelled: '备用已停用'};
+export const standbyOutcomes = {
+  pending: '等待正式出分', promoted: '正式高分，沿用见证', revoked: '正式低分，撤单留存',
+  superseded: '正式高分另开复核单',
+};
 export const sections = {
   archive: ['借展档案', '借展单、包装材料与封签'],
   transit: ['运输窗口', '展厅布置、车辆占用与派车'],
@@ -23,4 +28,7 @@ export const auditActions = {
   triage_queued: '进入分流队列', triage_retried: '重试风险分流', triage_scored: '模型判定已归档',
   triage_failed: '分流计算失败', unpack_witnessed: '开箱见证签署', downgrade_sample_required: '主管改判，转抽检',
   unpack_held: '主管暂停运输', unpack_reopened: '主管重开复核', sample_mismatch: '抽检封签不符', sample_cleared: '抽检通过',
+  standby_queued: '提交备用评分', standby_retried: '重试备用评分', standby_scored: '备用判定已归档',
+  standby_failed: '备用计算失败', standby_witnessed: '备用开箱见证签署', standby_promoted: '正式高分沿用备用见证',
+  standby_revoked: '正式低分撤销备用复核', standby_superseded: '正式高分另开复核单', standby_cancelled: '正式出分后停用备用评分',
 };
